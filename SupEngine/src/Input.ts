@@ -364,7 +364,10 @@ export default class Input extends EventEmitter {
 
   private onMouseWheel = (event: MouseWheelEvent) => {
     event.preventDefault();
-    this.newScrollDelta = (event.wheelDelta > 0 || event.detail < 0) ? 1 : -1;
+    this.newScrollDelta = 0;
+    if ((event.wheelDelta || event.detail) !== 0) {
+      this.newScrollDelta = (event.wheelDelta > 0 || event.detail < 0) ? 1 : -1;
+    }
     return false;
   };
 

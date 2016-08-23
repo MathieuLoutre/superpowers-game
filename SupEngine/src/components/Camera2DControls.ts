@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { throttle } from "lodash";
 import ActorComponent from "../ActorComponent";
 import Actor from "../Actor";
 import Camera from "./Camera";
@@ -47,6 +48,8 @@ export default class Camera2DControls extends ActorComponent {
     if (this.zoomCallback != null) this.zoomCallback();
   }
 
+  throttledChangeOrthographicScale = throttle(this.changeOrthographicScale, 75, { trailing: false });
+
   update() {
     let input = this.actor.gameInstance.input;
     let keys = (<any>window).KeyEvent;
@@ -84,7 +87,7 @@ export default class Camera2DControls extends ActorComponent {
       }
 
       if (newOrthographicScale != null && newOrthographicScale !== this.camera.orthographicScale) {
-        this.changeOrthographicScale(newOrthographicScale, mousePosition.x, mousePosition.y);
+        this.throttledChangeOrthographicScale(newOrthographicScale, mousePosition.x, mousePosition.y);
       }
     }
   }
