@@ -15,6 +15,7 @@ interface MouseButtonState {
 }
 
 interface TouchState {
+  isPrimary: boolean;
   isDown: boolean;
   wasStarted: boolean;
   wasEnded: boolean;
@@ -45,8 +46,6 @@ interface GamepadAutoRepeat {
 }
 
 export default class Input extends EventEmitter {
-  static maxTouches = 10;
-
   canvas: HTMLCanvasElement;
 
   mouseButtons: MouseButtonState[] = [];
@@ -57,8 +56,9 @@ export default class Input extends EventEmitter {
   newMouseDelta = { x: 0, y: 0 };
   newScrollDelta: number;
 
-  touches: TouchState[] = [];
-  touchesDown: boolean[] = [];
+  touches: { [id: string]: TouchState } = {};
+  touchesDown: { [id: string]: boolean } = {};
+  activeTouches = 0;
 
   keyboardButtons: KeyState[] = [];
   keyboardButtonsDown: boolean[] = [];
@@ -193,10 +193,9 @@ export default class Input extends EventEmitter {
     this.newMouseDelta.y = 0;
 
     // Touch
-    for (let i = 0; i < Input.maxTouches; i++) {
-      this.touches[i] = { isDown: false, wasStarted: false, wasEnded: false, position: { x: 0, y: 0} };
-      this.touchesDown[i] = false;
-    }
+    this.touches = {};
+    this.touchesDown = {};
+    this.activeTouches = 0;
 
     // Keyboard
     for (let i = 0; i <= 255; i++) {
@@ -374,12 +373,13 @@ export default class Input extends EventEmitter {
     let rect = event.target.getBoundingClientRect();
     for (let i = 0; i < event.changedTouches.length; i++) {
       let touch = event.changedTouches[i];
-      this.touches[touch.identifier].position.x = touch.clientX - rect.left;
-      this.touches[touch.identifier].position.y = touch.clientY - rect.top;
 
+      this.touches[touch.identifier] = { isPrimary: false, isDown: false, wasStarted: false, wasEnded: false, position: { x: touch.clientX - touch.clientY - rect.top, y: 0 } };
       this.touchesDown[touch.identifier] = true;
+      this.activeTouches += 1;
 
-      if (touch.identifier === 0) {
+      if (this.activeTouches === 1) {
+        this.touches[touch.identifier].isPrimary = true;
         this.newMousePosition = { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
         this.mouseButtonsDown[0] = true;
       }
@@ -392,7 +392,8 @@ export default class Input extends EventEmitter {
     for (let i = 0; i < event.changedTouches.length; i++) {
       let touch = event.changedTouches[i];
       this.touchesDown[touch.identifier] = false;
-      if (touch.identifier === 0) this.mouseButtonsDown[0] = false;
+      this.activeTouches -= 1;
+      if (this.touches[touch.identifier].isPrimary) this.mouseButtonsDown[0] = false;
     }
   };
 
@@ -406,7 +407,7 @@ export default class Input extends EventEmitter {
       this.touches[touch.identifier].position.x = touch.clientX - rect.left;
       this.touches[touch.identifier].position.y = touch.clientY - rect.top;
 
-      if (touch.identifier === 0) this.newMousePosition = { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+      if (this.touches[touch.identifier].isPrimary) this.newMousePosition = { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
     }
   };
 
@@ -474,13 +475,23 @@ export default class Input extends EventEmitter {
       mouseButton.wasJustReleased = wasDown && !mouseButton.isDown;
     }
 
-    for (let i = 0; i < this.touches.length; i++) {
-      let touch = this.touches[i];
-      let wasDown = touch.isDown;
-      touch.isDown = this.touchesDown[i];
+    let touchIdentifiers: string[] = Object.keys(this.touches);
 
-      touch.wasStarted = !wasDown && touch.isDown;
-      touch.wasEnded = wasDown && !touch.isDown;
+    for (let i = 0; i < touchIdentifiers.length; i++) {
+      let id = touchIdentifiers[i];
+      let touch = this.touches[id];
+
+      if (!touch.isDown && touch.wasEnded) {
+        delete this.touches[id];
+        delete this.touchesDown[id];
+      }
+      else {
+        let wasDown = touch.isDown;
+        touch.isDown = this.touchesDown[id];
+
+        touch.wasStarted = !wasDown && touch.isDown;
+        touch.wasEnded = wasDown && !touch.isDown;
+      }
     }
 
     for (let i = 0; i < this.keyboardButtons.length; i++) {
